@@ -1,3 +1,8 @@
+## In development (1.4.2)
+* Respect empty parens in event handlers (`<div :tap.someMethod()>`)
+* Allow special variables in event handlers (`<div :tap.someMethod($event,$data)>`)
+* Allow all aria-* attributes
+
 ## 1.4.1
 * Make Imba.setInterval automatically commit on each interval
 * Compile is to === (instead of ==)

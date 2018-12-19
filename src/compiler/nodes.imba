@@ -6185,6 +6185,8 @@ export class TagAttr < TagPart
 			"setNestedAttr('{ns}','{key}',{val}{add})"
 		elif key.indexOf("data-") == 0
 			"dataset('{key.slice(5)}',{val})"
+		elif key.indexOf("aria-") == 0
+			"set({quoted},{val}{add})"
 		elif dyn
 			"set({quoted},{val}{add})"
 		else
@@ -6200,6 +6202,13 @@ export class TagAttrValue < TagPart
 
 	def js
 		value.c
+
+export class TagHandlerSpecialArg < ValueNode
+	def isPrimitive
+		yes
+
+	def c
+		"'~{value}'"
 	
 export class TagModifier < TagPart	
 	prop params
@@ -6209,11 +6218,18 @@ export class TagModifier < TagPart
 			
 	def visit
 		@params.traverse if @params
+
+		for param in @params when param isa VarOrAccess
+			if param.value isa GlobalVarAccess
+				let special = TagHandlerSpecialArg.new(param.value.c)
+				@params.swap(param,special)
 		self
 		
 	def js
-		if params
+		if params and params.count > 0
 			"[{quoted},{params.c}]"
+		elif params
+			"[{quoted}]"
 		else
 			quoted
 
@@ -6275,7 +6291,7 @@ export class TagHandler < TagPart
 	def add item, type
 		if type == TagArgList
 			# could be dynamic
-			@last.params = item
+			@last.params = item or ListNode.new([])
 			# unless @last.isPrimitive
 			# 	@dyn ||= []
 			# 	@dyn.push(@chain:length)
@@ -6302,6 +6318,7 @@ export class TagHandler < TagPart
 		# 	@dyn ||= []
 		# 	@dyn.push(parts:length)
 		# find the context
+
 		return "on$({slot},[{AST.cary(parts)}],{scope__.context.c})"
 
 		#		let dl = @dyn and @dyn:length

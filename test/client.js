@@ -1058,7 +1058,9 @@ var native$ = [
 	'mousewheel','wheel','scroll',
 	'beforecopy','copy','beforepaste','paste','beforecut','cut',
 	'dragstart','drag','dragend','dragenter','dragover','dragleave','dragexit','drop',
-	'mouseup','mousedown','mouseenter','mouseleave','mouseout','mouseover','mousemove'
+	'mouseup','mousedown','mouseenter','mouseleave','mouseout','mouseover','mousemove',
+	'transitionstart','transitionend','transitioncancel',
+	'animationstart','animationiteration','animationend'
 ];
 
 
@@ -1293,6 +1295,9 @@ Imba.TAG_MOUNTED = 8;
 Imba.TAG_SCHEDULED = 16;
 Imba.TAG_AWAKENED = 32;
 Imba.TAG_MOUNTABLE = 64;
+Imba.TAG_AUTOCLASS_GLOBALS = true;
+Imba.TAG_AUTOCLASS_LOCALS = true;
+Imba.TAG_AUTOCLASS_SVG = true;
 
 
 
@@ -2078,10 +2083,14 @@ Imba.SVGTag.inherit = function (child){
 		return child._classes = [];
 	} else {
 		child._nodeType = this._nodeType;
-		var className = "_" + child._name.replace(/_/g,'-');
-		return child._classes = (this._classes || []).concat(className);
+		var classes = (this._classes || []).slice(0);
+		if (Imba.TAG_AUTOCLASS_SVG) {
+			classes.push("_" + child._name.replace(/_/g,'-'));
+		};
+		return child._classes = classes;
 	};
 };
+
 
 Imba.HTML_TAGS = "a abbr address area article aside audio b base bdi bdo big blockquote body br button canvas caption cite code col colgroup data datalist dd del details dfn div dl dt em embed fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input ins kbd keygen label legend li link main map mark menu menuitem meta meter nav noscript object ol optgroup option output p param pre progress q rp rt ruby s samp script section select small source span strong style sub summary sup table tbody td textarea tfoot th thead time title tr track u ul var video wbr".split(" ");
 Imba.HTML_TAGS_UNSAFE = "article aside header section".split(" ");
@@ -2215,9 +2224,13 @@ Imba.Tags.prototype.defineTag = function (fullName,supr,body){
 		Imba.SINGLETONS[name.slice(1)] = tagtype;
 		this[name] = tagtype;
 	} else if (name[0] == name[0].toUpperCase()) {
-		tagtype._flagName = name;
+		if (Imba.TAG_AUTOCLASS_LOCALS) {
+			tagtype._flagName = name;
+		};
 	} else {
-		tagtype._flagName = "_" + fullName.replace(/[_\:]/g,'-');
+		if (Imba.TAG_AUTOCLASS_GLOBALS) {
+			tagtype._flagName = "_" + fullName.replace(/[_\:]/g,'-');
+		};
 		this[fullName] = tagtype;
 	};
 	
@@ -2312,11 +2325,6 @@ Imba.createTagCache = function (owner){
 	var item = [];
 	item._tag = owner;
 	return item;
-	
-	var par = ((this.pref() != undefined) ? this.ctx()[this.pref()] : this.ctx()._tag);
-	var node = new TagMap(this.ctx(),this.ref(),par);
-	this.ctx()[this.ref()] = node;
-	return node;
 };
 
 Imba.createTagMap = function (ctx,ref,pref){
@@ -3444,7 +3452,6 @@ Imba.Event.prototype.bubble = function (v){
 Imba.Event.prototype.setBubble = function (v){
 	this._bubble = v;
 	return this;
-	return this;
 };
 
 
@@ -3534,9 +3541,11 @@ Imba.Event.prototype.processHandlers = function (node,handlers){
 		let handler = handlers[i++];
 		let params = null;
 		let context = node;
+		let checkSpecial = false;
 		
 		if (handler instanceof Array) {
 			params = handler.slice(1);
+			checkSpecial = true;
 			handler = handler[0];
 		};
 		
@@ -3592,6 +3601,26 @@ Imba.Event.prototype.processHandlers = function (node,handlers){
 		if (handler instanceof Function) {
 			// what if we actually call stop inside function?
 			// do we still want to continue the chain?
+			
+			// loop through special variables from params?
+			
+			if (checkSpecial) {
+				// replacing special params
+				for (let i = 0, items = iter$(params), len = items.length, param; i < len; i++) {
+					param = items[i];
+					if (typeof param == 'string' && param[0] == '~' && param[1] == '$') {
+						let name = param.slice(2);
+						if (name == 'event') {
+							params[i] = this;
+						} else if (node[name] instanceof Function) {
+							params[i] = node[name]();
+						} else {
+							console.warn(("Missing special handler $" + name));
+						};
+					};
+				};
+			};
+			
 			let res = handler.apply(context,params || [this]);
 			
 			if (!isMod) {
@@ -8097,7 +8126,8 @@ describe('Syntax - Tags',function() {
 		self.jseq("css('display','block')",function() { return (_1('div').css('display','block')).end(); });
 		self.jseq("setDisabled('disabled')",function() { return (_1('input').setDisabled('disabled')).end(); });
 		self.jseq("setDisabled('disabled').setReadonly('readonly')",function() { return (_1('input').setDisabled('disabled').setReadonly('readonly')).end(); });
-		return self.jseq(("set('model',strvar,\{number:1\})"),function() { return (_1('div')).set('model',strvar,{number:1}).end(); });
+		self.jseq(("set('model',strvar,\{number:1\})"),function() { return (_1('div')).set('model',strvar,{number:1}).end(); });
+		return self.jseq("set('aria-hidden','true')",function() { return (_1('div').set('aria-hidden','true')).end(); });
 	});
 	
 	
